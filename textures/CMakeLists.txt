@@ -36,3 +36,14 @@ INSTALL(TARGETS blend
          RUNTIME DESTINATION plugins
 )
 
+ADD_LIBRARY( variation SHARED "variation.cpp" )
+target_link_libraries(variation ${pkgs_LIBRARIES})
+INSTALL(TARGETS variation
+         RUNTIME DESTINATION plugins
+)
+
+ADD_LIBRARY( colorramp SHARED "colorramp.cpp" )
+target_link_libraries(colorramp ${pkgs_LIBRARIES})
+INSTALL(TARGETS colorramp
+         RUNTIME DESTINATION plugins
+)

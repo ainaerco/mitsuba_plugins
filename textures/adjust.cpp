@@ -19,6 +19,7 @@
 #include <mitsuba/render/texture.h>
 #include <mitsuba/render/shape.h>
 #include <mitsuba/hw/basicshader.h>
+#include "hsv.h"
 
 MTS_NAMESPACE_BEGIN
 
@@ -71,6 +72,10 @@ public:
 		m_newmin = props.getFloat("newmin", 0.0f);
 		m_newmax = props.getFloat("newmax", 1.0f);
 		m_gamma = props.getFloat("gamma", 1.0f);
+		m_hue = props.getFloat("hue", 0.0f);
+        m_saturation = props.getFloat("saturation", 1.0f);
+        m_exposure = props.getFloat("exposure", 0.0f);
+        m_offset = props.getFloat("offset", 0.0f);
 		m_clamp = props.getBoolean("clamp", false);
 		m_remap = !(m_min==0.0 && m_max==1.0 && m_newmin==0.0 && m_newmax==1.0);
 	}
@@ -84,6 +89,10 @@ public:
 		m_newmin = stream->readFloat();
 		m_newmax = stream->readFloat();
 		m_gamma = stream->readFloat();
+		m_hue = stream->readFloat();
+        m_saturation = stream->readFloat();
+        m_exposure = stream->readFloat();
+        m_offset = stream->readFloat();
 		m_clamp = stream->readBool();
 		m_remap = !(m_min==0.0 && m_max==1.0 && m_newmin==0.0 && m_newmax==1.0);
 	}
@@ -100,8 +109,6 @@ public:
 			Texture::addChild(name, child);
 	}
 	
-	
-
 	Spectrum eval(const Intersection &its, bool filter) const {
 		Spectrum result = m_nested->eval(its, filter);
 		if(m_remap) {
@@ -109,16 +116,28 @@ public:
 				result[i] = remap(result[i], m_min, m_max, m_newmin, m_newmax);
 			}
 		}
-		result *= m_scale;
-		if(m_clamp) {
+		if(m_gamma!=1.0f) {
+			for (int i=0; i<SPECTRUM_SAMPLES; ++i) {
+				result[i] = pow(result[i], 1.0f/m_gamma);
+			}
+		}
+		if(m_hue != 0.0f || m_saturation != 1.0f) {
+            HSV hsv(result);
+            hsv.h += m_hue;
+            hsv.s = hsv.s * m_saturation;
+            result = hsv.toSpectrum();
+        }
+        if(m_exposure != 0.0f) {
+            for (int i=0; i<SPECTRUM_SAMPLES; ++i) {
+                result[i] *= pow(2.0f, m_exposure);
+            }
+        }
+        result = result * m_scale + Spectrum(m_offset);
+
+        if(m_clamp) {
 			for (int i=0; i<SPECTRUM_SAMPLES; ++i) {
 				result[i] = std::max(0.0f, result[i]);
 				result[i] = std::min(1.0f, result[i]);
-			}
-		}
-		if(m_gamma!=1) {
-			for (int i=0; i<SPECTRUM_SAMPLES; ++i) {
-				result[i] = pow(result[i], 1.0f/m_gamma);
 			}
 		}
 		return result;
@@ -169,6 +188,10 @@ public:
 			<< "  nested = " << indent(m_nested->toString()) << "," << endl
 			<< "  scale = " << m_scale.toString() << endl
 			<< "  gamma = " << m_gamma << endl
+			<< "  hue = " << m_hue << endl
+            << "  saturation = " << m_saturation << endl
+            << "  exposure = " << m_exposure << endl
+            << "  offset = " << m_offset << endl
 			<< "  clamp = " << (m_clamp?"true":"false") << endl
 			<< "]";
 		return oss.str();
@@ -193,6 +216,10 @@ public:
 		stream->writeFloat(m_newmin);
 		stream->writeFloat(m_newmax);
 		stream->writeFloat(m_gamma);
+		stream->writeFloat(m_hue);
+        stream->writeFloat(m_saturation);
+        stream->writeFloat(m_exposure);
+        stream->writeFloat(m_offset);
 		stream->writeBool(m_clamp);
 	}
 
@@ -205,6 +232,10 @@ protected:
 	Float m_newmin;
 	Float m_newmax;
 	Float m_gamma;
+	Float m_hue;
+    Float m_saturation;
+    Float m_exposure;
+    Float m_offset;
 	bool m_clamp;
 	bool m_remap;
 };
