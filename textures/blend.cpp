@@ -56,7 +56,6 @@ public:
 		m_color0 = new ConstantSpectrumTexture(props.getSpectrum("color0", Spectrum(.5f)));
 		m_color1 = new ConstantSpectrumTexture(props.getSpectrum("color1", Spectrum(.5f)));
 		m_amount = props.getFloat("amount", 0.5);
-
 	}
 
 	Blend(Stream *stream, InstanceManager *manager)

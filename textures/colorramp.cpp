@@ -137,7 +137,6 @@ public:
 			colors.push_back(t->eval(its, filter));
 		}
 
-		// Float p = evalCubicInterp1D(-its.uv.y, &positions[0], m_numSamples, 0.0f, 1.0f);
 		Spectrum result;
 		for (int i=0; i<SPECTRUM_SAMPLES; ++i) {
 			std::vector<Float> samples;
@@ -145,25 +144,43 @@ public:
 				samples.push_back(s[i]);
 			result[i] = std::max(0.0f, std::min(1.0f, evalCubicInterp1DN(
 				-its.uv.y, &positions[0], &samples[0], m_numSamples)));
-			// result[i] = std::max(0.0f,std::min(1.0f,evalCubicInterp1D(p, &samples[0], m_numSamples, 0.0f, 1.0f)));
 		}
 		return result;
 	}
 
 	bool usesRayDifferentials() const {
-		return m_colors[0]->usesRayDifferentials();
+		bool usesRayDifferentials = false;
+		BOOST_FOREACH(ref<Texture> t, m_colors)
+			usesRayDifferentials |= t->usesRayDifferentials();
+		BOOST_FOREACH(ref<Texture> t, m_positions)
+			usesRayDifferentials |= t->usesRayDifferentials();
+		return usesRayDifferentials;
 	}
 
 	Spectrum getMaximum() const {
-		return m_colors[0]->getMaximum();
+		Spectrum max(0.0f);
+		BOOST_FOREACH(ref<Texture> t, m_colors) {
+			for (int i=0; i<SPECTRUM_SAMPLES; ++i)
+				max[i] = std::max(max[i], t->getMaximum()[i]);
+		}
+		return max;
 	}
 
 	Spectrum getMinimum() const {
-		return m_colors[0]->getMinimum();
+		Spectrum min(1.0f);
+		BOOST_FOREACH(ref<Texture> t, m_colors) {
+			for (int i=0; i<SPECTRUM_SAMPLES; ++i)
+				min[i] = std::min(min[i], t->getMinimum()[i]);
+		}
+		return min;
 	}
 
 	Spectrum getAverage() const {
-		return m_colors[0]->getAverage();
+		Spectrum average(0.0f);
+		BOOST_FOREACH(ref<Texture> t, m_colors)
+			average += t->getAverage();
+		average /= (float)m_numSamples;
+		return average;
 	}
 
 	bool isConstant() const {
@@ -171,7 +188,10 @@ public:
 	}
 
 	bool isMonochromatic() const {
-		return m_colors[0]->isMonochromatic();
+		bool isMonochromatic = true;
+		BOOST_FOREACH(ref<Texture> t, m_colors)
+			isMonochromatic &= t->isMonochromatic();
+		return isMonochromatic;
 	}
 
 	std::string toString() const {

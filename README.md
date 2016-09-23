@@ -9,7 +9,9 @@ Plugins for mitsuba renderer 0.5.0.
 * textures/blend        - Blend two textures
 * textures/checker      - Modified original checker, accepts texture inputs
 * textures/combine      - Multiply/Divide/Add/Subtract two textures
-* textures/oiio_texture - OpenimageIO texture
+* textures/colorramp    - Color ramp, currently supports only v direction
+* textures/oiio_texture - OpenimageIO texture with udim support
+* textures/variation    - Randomize color seeded by shape name or instance id
 
 Dependencies:
 Alembic,

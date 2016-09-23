@@ -43,6 +43,7 @@
 #include <far/stencilTableFactory.h>
 
 #include "threadsafeMap.h"
+#include "threadPool.h"
 
 
 MTS_NAMESPACE_BEGIN
@@ -283,13 +284,9 @@ public:
 	}
 
 	void workerFuncSimple(
-		int threadId,
 		const Transform& objectToWorld,
 		const std::string& identifier,
-		WorkerData* workerData
-		
-		// const WorkerData& workerData
-		)
+		WorkerData* workerData)
 	{
 		int nfaces   = (int)workerData->sampleCounts->size();
 		int nverts   = (int)workerData->samplePos->size();
@@ -330,10 +327,10 @@ public:
 
 		for (int face = 0; face < nfaces; ++face) {
 			int vertsPerFace = workerData->sampleCounts->get()[face];
-			if(vertsPerFace<=4) {
-				currentIndex += vertsPerFace;
-				continue;
-			}
+			// if(vertsPerFace<=4) {
+			// 	currentIndex += vertsPerFace;
+			// 	continue;
+			// }
 			// std::cout<<vertsPerFace<<"\n";
 			for(int i=0;i<vertsPerFace-2;++i) {
 				uint32_t key;
@@ -418,20 +415,17 @@ public:
 
 		mesh->incRef();
 		workerData->mesh = mesh;
-		m_cache.insert(threadId, workerData);
+		m_cacheVec.push_back(workerData);
 		m_numTriangles += numTriFaces;
 		m_numVertices += numTriFaces * 3;
 		m_numVerticesLow += nverts;
 	}
 
 	void workerFunc(
-		int threadId,
 		const int maxlevel,
 		const Transform& objectToWorld,
 		const std::string& identifier,
 		WorkerData* workerData
-		
-		// const WorkerData& workerData
 		)
 	{
 		// OpenSubdiv
@@ -439,7 +433,7 @@ public:
 
 		Sdc::Options options;
 		options.SetVtxBoundaryInterpolation(Sdc::Options::VTX_BOUNDARY_EDGE_ONLY);
-		options.SetFVarLinearInterpolation(Sdc::Options::FVAR_LINEAR_NONE); // Sdc::FVAR_LINEAR_ALL
+		options.SetFVarLinearInterpolation(Sdc::Options::FVAR_LINEAR_CORNERS_PLUS2); // Sdc::FVAR_LINEAR_ALL
 		options.SetCreasingMethod(Sdc::Options::CREASE_CHAIKIN);
 		// options.SetTriangleSubdivision(Sdc::Options::TRI_SUB_SMOOTH);
 		typedef Far::TopologyDescriptor Descriptor;
@@ -667,7 +661,7 @@ public:
 
 		mesh->incRef();
 		workerData->mesh = mesh;
-		m_cache.insert(threadId, workerData);
+		m_cacheVec.push_back(workerData);
 		m_numTriangles += nfaces;
 		m_numVertices += nfaces * 2 * 3;
 		m_numVerticesLow += nverts;
@@ -684,13 +678,10 @@ public:
 
 		// Object-space -> World-space transformation
 		const Transform transform = props.getTransform("toWorld", Transform());
-
 		const int maxlevel = props.getInteger("level", 0);
-
 		const std::string identifiersStr = props.getString("identifiers","");
 
 		ref<Timer> timer = new Timer();
-		size_t trianglesTotal = 0;
 
 		AbcA::index_t sampleIndex = 0;
 
@@ -712,20 +703,14 @@ public:
 		}
 		else
 			recurseObjectChildren(object, sampleIndex, transform, alembicPolymeshes);
-		
-		int numthreads = 4;
-		for(size_t i = 0; i < alembicPolymeshes.size() / numthreads + 1; ++i)
 		{
-			boost::thread_group m_worker_threads;
-			m_cache.clear();
-
-			// AbcG::IPolyMeshSchema polySchema[4];
-			
-			for (int j = 0; (i < alembicPolymeshes.size() / numthreads && j < numthreads) || 
-				(i == alembicPolymeshes.size() / numthreads && j < alembicPolymeshes.size() % numthreads); ++j)
+			// thread pool scope
+			int numthreads = boost::thread::hardware_concurrency();
+			ThreadPool threadPool(numthreads);
+			for(size_t i = 0; i < alembicPolymeshes.size(); ++i)
 			{
 				WorkerData* workerData = new WorkerData();
-				AbcG::IPolyMeshSchema polySchema = alembicPolymeshes[i * numthreads + j].schema;
+				AbcG::IPolyMeshSchema polySchema = alembicPolymeshes[i].schema;
 				workerData->samplePos = polySchema.getPositionsProperty().getValue(sampleIndex);
 				workerData->sampleCounts = polySchema.getFaceCountsProperty().getValue(sampleIndex);
 				workerData->sampleIndices = polySchema.getFaceIndicesProperty().getValue(sampleIndex);
@@ -773,7 +758,6 @@ public:
 					creaseLengthsProperty.get(workerData->creaseLengths, sampleIndex);
 					creaseIndicesProperty.get(workerData->creaseIndices, sampleIndex);
 				}
-
 				if(workerData->hasTexcoords)
 				{
 					workerData->sampleUV = uvsParam.getValueProperty().getValue( sampleIndex );
@@ -787,40 +771,28 @@ public:
 						workerData->sampleNormalIndices = normalsParam.getIndexProperty().getValue( sampleIndex );
 				}
 				if(maxlevel) {
-					m_worker_threads.create_thread(boost::bind(&Subdiv::workerFunc, this, 
-						j,
+					threadPool.enqueue(boost::bind(&Subdiv::workerFunc, this, 
 						maxlevel,
-						alembicPolymeshes[i * numthreads + j].transform,
-						alembicPolymeshes[i * numthreads + j].identifier,
+						alembicPolymeshes[i].transform,
+						alembicPolymeshes[i].identifier,
 						workerData
 					));
 				} else {
-					m_worker_threads.create_thread(boost::bind(&Subdiv::workerFuncSimple, this, 
-						j,
-						alembicPolymeshes[i * numthreads + j].transform,
-						alembicPolymeshes[i * numthreads + j].identifier,
+					threadPool.enqueue(boost::bind(&Subdiv::workerFuncSimple, this, 
+						alembicPolymeshes[i].transform,
+						alembicPolymeshes[i].identifier,
 						workerData
 					));
 				}
-				// Subdiv::workerFuncSimple(
-				// 		j,
-				// 		alembicPolymeshes[i * numthreads + j].transform,
-				// 		alembicPolymeshes[i * numthreads + j].identifier,
-				// 		workerData);
 			}
-
-			m_worker_threads.join_all();
-			
-			for (int j = 0; j < numthreads; ++j)
-			{
-				WorkerData* w = m_cache.find(j);
-				if(w == NULL || !w->mesh)
-					continue;
-				m_meshes.push_back(w->mesh);
-				m_materialAssignment.push_back(w->shader);
-				delete w;
-			}
-
+		}
+		for(size_t i=0;i<m_cacheVec.size();++i) {
+			WorkerData* w = m_cacheVec.get(i);
+			if(w == NULL || !w->mesh)
+				continue;
+			m_meshes.push_back(w->mesh);
+			m_materialAssignment.push_back(w->shader);
+			delete w;
 		}
 		Log(EInfo, "Done with %d triangles (took %i ms)", m_numTriangles, timer->getMilliseconds());
 		std::cout<<"Datasize triangles "<<m_numTriangles*sizeof(Triangle)/1000000<<
@@ -976,7 +948,7 @@ private:
 	std::vector<std::string> m_materialAssignment;
 	std::string m_name;
 	AABB m_aabb;
-	MapSafe<int, WorkerData*> m_cache;
+	VectorSafe<WorkerData*> m_cacheVec;
 
 	boost::atomic<size_t> m_numTriangles;
 	boost::atomic<size_t> m_numVertices;

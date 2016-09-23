@@ -59,3 +59,36 @@ private:
 	boost::shared_mutex m;
 	std::map<Key, Data> map;
 };
+
+template<class Data>
+class VectorSafe
+{
+	typedef ReaderProxy< std::vector<Data>, boost::shared_mutex> Reader;
+	typedef WriterProxy< std::vector<Data>, boost::shared_mutex> Writer;
+
+public:
+	Data get(size_t i)
+	{
+		Reader r(vec, m);
+		return r->at(i);
+	}
+
+	void push_back(Data v)
+	{
+		Writer w(vec, m);
+		w->push_back(v);
+	}
+
+	size_t size()
+	{
+		return vec.size();
+	}
+
+	void clear()
+	{
+		vec.clear();
+	}
+private:
+	boost::shared_mutex m;
+	std::vector<Data> vec;
+};

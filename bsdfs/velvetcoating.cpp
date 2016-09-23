@@ -163,7 +163,6 @@ public:
 		if (Frame::cosTheta(bRec.wi) <= 0 ||
 			Frame::cosTheta(bRec.wo) <= 0 || measure != ESolidAngle)
 			return result;
-
 		bool hasSpecular = (bRec.typeMask & EGlossyReflection)
 				&& (bRec.component == -1 || bRec.component == (int) m_components.size()-1);
 		bool hasNested = (bRec.typeMask & m_nested->getType() & BSDF::EAll)
