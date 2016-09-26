@@ -47,3 +47,9 @@ target_link_libraries(colorramp ${pkgs_LIBRARIES})
 INSTALL(TARGETS colorramp
          RUNTIME DESTINATION plugins
 )
+
+ADD_LIBRARY( osl SHARED "osl.cpp;simplerend.cpp" )
+target_link_libraries(osl ${pkgs_LIBRARIES} ${LLVM_LIBRARY})
+INSTALL(TARGETS osl
+         RUNTIME DESTINATION plugins
+)
