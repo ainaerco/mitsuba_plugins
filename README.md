@@ -2,7 +2,6 @@
 Plugins for mitsuba renderer 0.5.0.
 
 * shapes/subd           - Alembic procedural with OpenSubdiv support
-* bsdfs/velvetcoating   - Inverted gaussian bsdf for sheen, coating material
 * bsdfs/wardaniso       - Ward with anisotropy rotation input
 * bsdfs/zmask           - Modified orginal mask bsdf to render leaves with opacity
 * textures/adjust       - Adjust texture color

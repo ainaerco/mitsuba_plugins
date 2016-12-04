@@ -273,7 +273,7 @@ public:
 		if(!output_found) {
 			if(outputs.size() == 0)
 				Log(EError, "Outputs not found in OSL!"); 
-			else
+			else if(outputs.size() == 1)
 				m_outputVar = outputs[0];
 			else
 				Log(EError, "Wrong 'output' specified, available options are: %s", boost::algorithm::join(outputs, ", "));
